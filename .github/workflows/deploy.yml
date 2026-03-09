@@ -1,0 +1,97 @@
+name: Continuous Deployment
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      skip-cache:
+        description: 'Skip deployment cache and force redeploy'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  statuses: write
+  id-token: write
+
+concurrency:
+  group: deploy-frontend-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build
+    outputs:
+      dotns-domain: ${{ steps.domain.outputs.dotns-domain }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set domain name
+        id: domain
+        run: |
+          if [ "${{ github.event_name }}" == "push" ]; then
+            DOMAIN="iframeinception00.dot"
+          else
+            BRANCH="${{ github.event.pull_request.head.ref }}"
+            # Replace invalid characters with hyphens, collapse multiple hyphens, trim edges
+            SAFE_BRANCH=$(echo "$BRANCH" | tr -c 'a-zA-Z0-9-' '-' | tr -s '-' | sed 's/^-//;s/-$//')
+            DOMAIN="${{ github.event.repository.name }}-${SAFE_BRANCH}00.dot"
+          fi
+          echo "dotns-domain=$DOMAIN" >> $GITHUB_OUTPUT
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Compute source hash
+        id: source-hash
+        run: echo "hash=$(find src package.json -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache build
+        id: cache-build
+        uses: actions/cache@v5
+        with:
+          path: dist
+          key: build-${{ steps.source-hash.outputs.hash }}
+
+      - name: Build app
+        if: steps.cache-build.outputs.cache-hit != 'true'
+        run: bun run build
+        env:
+          TURBO_TELEMETRY_DISABLED: 1
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-build
+          path: dist
+          retention-days: 1
+
+  deploy:
+    needs: build
+    name: Deploy
+    uses: paritytech/product-infrastructure/.github/workflows/deploy-to-triangle.yml@829ee12c14be6d2116ee98d59450f23cbc41495b
+    with:
+      dotns-domain: ${{ needs.build.outputs.dotns-domain }}
+      artifact-name: frontend-build
+      skip-cache: ${{ inputs.skip-cache || false }}
+    secrets:
+      mnemonic: ${{ secrets.MNEMONIC || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
