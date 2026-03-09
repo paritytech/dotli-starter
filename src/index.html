@@ -34,6 +34,17 @@
                 color: #888;
                 margin-bottom: 0.5rem;
             }
+            .iframe-row {
+                display: flex;
+                gap: 0.5rem;
+            }
+            .iframe-row iframe {
+                flex: 1;
+                height: 400px;
+                border: 1px solid #333;
+                border-radius: 4px;
+                background: #111;
+            }
             #greeting {
                 font-size: 1.1rem;
                 min-height: 2.5rem;
@@ -133,6 +144,15 @@
     </head>
     <body>
         <h1>Starter Kit</h1>
+
+        <!-- Iframes: two dot.li apps side by side -->
+        <section>
+            <h2>Iframes</h2>
+            <div class="iframe-row">
+                <iframe src="https://hackme3.app.dot.li" sandbox="allow-scripts allow-same-origin" allow="clipboard-read; clipboard-write"></iframe>
+                <iframe src="https://t3rminal-app-88-pr-75.app.dot.li/" sandbox="allow-scripts allow-same-origin" allow="clipboard-read; clipboard-write"></iframe>
+            </div>
+        </section>
 
         <!-- Account: shows greeting once logged in, or a prompt to log in -->
         <section>
