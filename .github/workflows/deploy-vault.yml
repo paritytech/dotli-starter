@@ -1,0 +1,38 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      skip-cache:
+        description: 'Skip deployment cache and force redeploy'
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: src/
+
+  deploy:
+    name: Deploy
+    needs: build
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
+    with:
+      basename: vaultapp
+      artifact-name: site
+      mode: production
+      register-base: true
+    secrets:
+      dotns-mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
