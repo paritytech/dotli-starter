@@ -138,7 +138,7 @@ const $qrList = document.getElementById("qr-list");
 const $walletEncrypt = document.getElementById("wallet-encrypt");
 // Decrypt section
 const $decCidInput = document.getElementById("dec-cid-input");
-const $decKeyIdInput = document.getElementById("dec-keyid-input");
+const $decLabelInput = document.getElementById("dec-label-input");
 const $btnDecrypt = document.getElementById("btn-decrypt");
 const $decStatus = document.getElementById("dec-status");
 const $decViewer = document.getElementById("dec-viewer");
@@ -877,15 +877,15 @@ const IPFS_GATEWAY = "https://paseo-ipfs.polkadot.io";
 if ($btnDecrypt) {
   $btnDecrypt.addEventListener("click", async () => {
     const cidStr = $decCidInput.value.trim();
-    const keyId = $decKeyIdInput.value.trim();
+    const label = $decLabelInput.value.trim();
 
     if (!cidStr) {
       $decStatus.textContent = "Please enter a CID.";
       $decStatus.className = "status err";
       return;
     }
-    if (!keyId) {
-      $decStatus.textContent = "Please enter a Key ID.";
+    if (!label) {
+      $decStatus.textContent = "Please enter the recipient name.";
       $decStatus.className = "status err";
       return;
     }
@@ -907,7 +907,7 @@ if ($btnDecrypt) {
           data: {
             tag: "Bytes",
             value: new TextEncoder().encode(
-              JSON.stringify({ type: "ENVELOPE:GET_KEY", keyId }),
+              JSON.stringify({ type: "ENVELOPE:GET_KEY", label }),
             ),
           },
         },
@@ -958,10 +958,12 @@ if ($btnDecrypt) {
       const decrypted = envl.decryptSubjectToRecipient(recipientKey);
       const html = decrypted.subject().asText();
 
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      $decViewer.src = url;
-      $decViewer.style.display = "block";
+      // Render into shadow DOM for style isolation
+      $decViewer.innerHTML = "";
+      const shadow = $decViewer.attachShadow
+        ? $decViewer.attachShadow({ mode: "open" })
+        : $decViewer;
+      shadow.innerHTML = html;
       $decViewerSection.style.display = "block";
 
       $decStatus.textContent = "Decrypted successfully.";

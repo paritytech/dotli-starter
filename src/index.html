@@ -373,9 +373,9 @@
                 placeholder="CID (e.g. bafk...)"
             />
             <input
-                id="dec-keyid-input"
+                id="dec-label-input"
                 type="text"
-                placeholder="Key ID (from wallet)"
+                placeholder="Recipient name (e.g. Alice)"
             />
             <button id="btn-decrypt" class="secondary">Decrypt</button>
             <div id="dec-status" class="status info" style="margin-top:0.35rem"></div>
@@ -383,11 +383,10 @@
 
         <section id="dec-viewer-section" style="display:none">
             <h2>Decrypted Content</h2>
-            <iframe
+            <div
                 id="dec-viewer"
-                sandbox="allow-same-origin allow-scripts"
-                style="width:100%;border:1px solid #333;border-radius:4px;background:#111;min-height:300px;display:none"
-            ></iframe>
+                style="width:100%;border:1px solid #333;border-radius:4px;background:#111;min-height:100px;padding:1rem"
+            ></div>
         </section>
 
         <!-- Log: timestamped output for all SDK operations -->
