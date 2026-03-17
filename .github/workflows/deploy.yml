@@ -20,9 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build site
-        run: npm ci && npm run build
-
       - uses: actions/upload-artifact@v4
         with:
           name: site
