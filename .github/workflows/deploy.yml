@@ -30,7 +30,7 @@ jobs:
     needs: build
     uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
     with:
-      basename: vaultuploader
+      basename: vaulttester
       artifact-name: site
       mode: production
       register-base: true
