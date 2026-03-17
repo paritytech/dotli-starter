@@ -63,26 +63,20 @@ jobs:
 
       - name: Compute source hash
         id: source-hash
-        run: echo "hash=$(find src package.json -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+        run: echo "hash=$(find src/privat3 -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Cache build
         id: cache-build
         uses: actions/cache@v5
         with:
-          path: dist
+          path: src/privat3
           key: build-${{ steps.source-hash.outputs.hash }}
-
-      - name: Build app
-        if: steps.cache-build.outputs.cache-hit != 'true'
-        run: bun run build
-        env:
-          TURBO_TELEMETRY_DISABLED: 1
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
         with:
           name: frontend-build
-          path: dist
+          path: src/privat3
           retention-days: 1
 
   deploy:
