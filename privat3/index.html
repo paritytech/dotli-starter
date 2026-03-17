@@ -147,11 +147,23 @@
                 <button id="btn-load" class="primary">Load</button>
             </div>
             <div id="status" class="status info"></div>
+
+            <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid #333">
+                <p style="font-size:0.8rem;color:#888;margin-bottom:0.5rem">
+                    Or decrypt using a key stored in your wallet:
+                </p>
+                <input
+                    id="wallet-keyid-input"
+                    type="text"
+                    placeholder="Key ID (from wallet)"
+                />
+                <button id="btn-wallet-decrypt" class="primary">Decrypt with Wallet</button>
+            </div>
         </section>
 
         <section id="viewer-section" style="display:none">
             <h2>Decrypted Content</h2>
-            <iframe id="viewer" sandbox="allow-same-origin"></iframe>
+            <iframe id="viewer" sandbox="allow-same-origin allow-scripts"></iframe>
         </section>
 
         <section>
@@ -161,7 +173,9 @@
         <script type="importmap">
             {
                 "imports": {
-                    "@bcts/envelope": "https://esm.sh/@bcts/envelope@1.0.0-alpha.22"
+                    "@bcts/envelope": "https://esm.sh/@bcts/envelope@1.0.0-alpha.22",
+                    "@novasamatech/product-sdk": "https://esm.sh/@novasamatech/product-sdk@0.6.1",
+                    "polkadot-api/utils": "https://esm.sh/polkadot-api@1.23.3/utils"
                 }
             }
         </script>
@@ -172,6 +186,41 @@
             } from "@bcts/envelope";
 
             const IPFS_GATEWAY = "https://paseo-ipfs.polkadot.io";
+            let walletReady = false;
+            let hostApiRef = null;
+            let walletAccounts = [];
+
+            // Try to initialize the product SDK for wallet communication
+            async function initWalletBridge() {
+                try {
+                    const {
+                        injectSpektrExtension,
+                        createNonProductExtensionEnableFactory,
+                        createAccountsProvider,
+                        sandboxTransport,
+                        hostApi,
+                    } = await import("@novasamatech/product-sdk");
+                    const { toHex } = await import("polkadot-api/utils");
+
+                    await injectSpektrExtension();
+                    const enableFactory = await createNonProductExtensionEnableFactory(sandboxTransport);
+                    if (!enableFactory) return;
+
+                    const injected = await enableFactory();
+                    const accountsProvider = createAccountsProvider(sandboxTransport);
+                    const res = await accountsProvider.getNonProductAccounts();
+                    walletAccounts = res.match(a => a, () => []);
+                    hostApiRef = hostApi;
+                    walletReady = walletAccounts.length > 0;
+
+                    if (walletReady) {
+                        document.getElementById("btn-wallet-decrypt").style.opacity = "1";
+                    }
+                } catch (e) {
+                    console.log("Wallet bridge not available:", e.message);
+                }
+            }
+            initWalletBridge();
 
             const $cidInput = document.getElementById("cid-input");
             const $keyInput = document.getElementById("key-input");
@@ -302,6 +351,91 @@
             document.getElementById("btn-back").addEventListener("click", () => {
                 stopScanner();
                 window.location.href = "../index.html";
+            });
+
+            // Wallet-based decryption
+            document.getElementById("btn-wallet-decrypt").addEventListener("click", async () => {
+                const cidStr = $cidInput.value.trim();
+                const keyId = document.getElementById("wallet-keyid-input").value.trim();
+
+                if (!cidStr) {
+                    setStatus("Please enter a CID.", "err");
+                    return;
+                }
+                if (!keyId) {
+                    setStatus("Please enter a Key ID.", "err");
+                    return;
+                }
+                if (!walletReady || !hostApiRef) {
+                    setStatus("Wallet not connected. Open this page inside the Host app.", "err");
+                    return;
+                }
+
+                stopScanner();
+                setStatus("Requesting key from wallet...", "info");
+
+                try {
+                    const { toHex } = await import("polkadot-api/utils");
+                    const result = await hostApiRef.signRaw({
+                        tag: "v1",
+                        value: {
+                            address: toHex(walletAccounts[0].publicKey),
+                            data: {
+                                tag: "Bytes",
+                                value: new TextEncoder().encode(
+                                    JSON.stringify({ type: "ENVELOPE:GET_KEY", keyId }),
+                                ),
+                            },
+                        },
+                    });
+
+                    let urString = null;
+                    result.match(
+                        (r) => {
+                            const sig = r.value.signature;
+                            if (sig.startsWith("0xee")) {
+                                const hexStr = sig.slice(4);
+                                const bytes = new Uint8Array(
+                                    hexStr.match(/.{1,2}/g).map((b) => parseInt(b, 16)),
+                                );
+                                const json = new TextDecoder().decode(bytes);
+                                const response = JSON.parse(json);
+                                if (response.urString) {
+                                    urString = response.urString;
+                                } else if (response.error) {
+                                    setStatus(`Wallet: ${response.error}`, "err");
+                                }
+                            }
+                        },
+                        (e) => {
+                            setStatus(`Wallet request failed: ${e.value?.name || e}`, "err");
+                        },
+                    );
+
+                    if (!urString) return;
+
+                    setStatus("Fetching from IPFS...", "info");
+                    const res = await fetch(`${IPFS_GATEWAY}/ipfs/${cidStr}`);
+                    if (!res.ok) throw new Error(`IPFS fetch failed: ${res.status}`);
+                    const envelopeBytes = new Uint8Array(await res.arrayBuffer());
+
+                    setStatus("Decrypting...", "info");
+                    const recipientKey = PrivateKeyBase.fromURString(urString);
+                    const envelope = envelopeFromBytes(envelopeBytes);
+                    const decrypted = envelope.decryptSubjectToRecipient(recipientKey);
+                    const html = decrypted.subject().asText();
+
+                    const blob = new Blob([html], { type: "text/html" });
+                    const url = URL.createObjectURL(blob);
+                    $viewer.src = url;
+                    $viewer.style.display = "block";
+                    $viewerSection.style.display = "block";
+                    setStatus("Decrypted successfully.", "ok");
+                } catch (e) {
+                    setStatus(`Decryption failed: ${e.message}`, "err");
+                    $viewer.style.display = "none";
+                    $viewerSection.style.display = "none";
+                }
             });
         </script>
     </body>

@@ -81,6 +81,7 @@ import {
   SymmetricKey,
   PrivateKeyBase,
   envelopeToBytes,
+  envelopeFromBytes,
 } from "@bcts/envelope";
 
 // ---------------------------------------------------------------------------
@@ -134,6 +135,14 @@ const $btnSend = document.getElementById("btn-send");
 const $btnDemo = document.getElementById("btn-demo");
 const $qrSection = document.getElementById("qr-section");
 const $qrList = document.getElementById("qr-list");
+const $walletEncrypt = document.getElementById("wallet-encrypt");
+// Decrypt section
+const $decCidInput = document.getElementById("dec-cid-input");
+const $decKeyIdInput = document.getElementById("dec-keyid-input");
+const $btnDecrypt = document.getElementById("btn-decrypt");
+const $decStatus = document.getElementById("dec-status");
+const $decViewer = document.getElementById("dec-viewer");
+const $decViewerSection = document.getElementById("dec-viewer-section");
 
 // ---------------------------------------------------------------------------
 // State
@@ -694,12 +703,77 @@ $btnSend.addEventListener("click", async () => {
     const symKey = SymmetricKey.new();
     let envelope = Envelope.new(content).encryptSubject(symKey);
 
+    const useWallet = $walletEncrypt && $walletEncrypt.checked && providerAccounts.length > 0;
     const recipientKeyPairs = [];
+
     for (const name of recipients) {
-      const recipientKey = PrivateKeyBase.generate();
+      let recipientKey;
+      let keyId = null;
+
+      if (useWallet) {
+        // Request key from wallet
+        log(`Requesting key for ${name} from wallet...`);
+        try {
+          const result = await hostApi.signRaw({
+            tag: "v1",
+            value: {
+              address: toHex(providerAccounts[0].publicKey),
+              data: {
+                tag: "Bytes",
+                value: new TextEncoder().encode(
+                  JSON.stringify({ type: "ENVELOPE:GENERATE_KEY", label: name }),
+                ),
+              },
+            },
+          });
+
+          let envelopeResponse = null;
+          result.match(
+            (r) => {
+              const sig = r.value.signature;
+              // Check for 0xEE prefix (envelope response)
+              if (sig.startsWith("0xee")) {
+                try {
+                  // Decode hex to bytes, skip 0xEE prefix, decode UTF-8 JSON
+                  const hexStr = sig.slice(4); // skip "0xee"
+                  const bytes = new Uint8Array(
+                    hexStr.match(/.{1,2}/g).map((b) => parseInt(b, 16)),
+                  );
+                  const json = new TextDecoder().decode(bytes);
+                  envelopeResponse = JSON.parse(json);
+                } catch (e) {
+                  log(`Failed to parse envelope response: ${e.message}`, "err");
+                }
+              }
+            },
+            (e) => {
+              log(`Wallet key request failed: ${e.value?.name || e}`, "err");
+            },
+          );
+
+          if (envelopeResponse && envelopeResponse.urString) {
+            recipientKey = PrivateKeyBase.fromURString(envelopeResponse.urString);
+            keyId = envelopeResponse.keyId;
+            log(`${name}: key stored in wallet (${keyId})`, "ok");
+          }
+        } catch (e) {
+          log(`Wallet request error: ${e.message}`, "err");
+        }
+      }
+
+      if (!recipientKey) {
+        // Fallback: generate locally
+        recipientKey = PrivateKeyBase.generate();
+        log(`${name}: ${recipientKey.urString()}`, "ok");
+      }
+
       envelope = envelope.addRecipient(recipientKey.publicKeys(), symKey);
-      recipientKeyPairs.push({ name, key: recipientKey.urString() });
-      log(`${name}: ${recipientKey.urString()}`, "ok");
+      recipientKeyPairs.push({
+        name,
+        key: recipientKey.urString(),
+        keyId,
+        walletManaged: !!keyId,
+      });
     }
 
     const fileBytes = new Uint8Array(envelopeToBytes(envelope));
@@ -707,36 +781,56 @@ $btnSend.addEventListener("click", async () => {
     // Generate an outsider key (should NOT be able to decrypt)
     const outsiderKey = PrivateKeyBase.generate();
     log(`Outsider key (no access): ${outsiderKey.urString()}`, "ok");
-    recipientKeyPairs.push({ name: "Outsider (no access)", key: outsiderKey.urString() });
+    recipientKeyPairs.push({
+      name: "Outsider (no access)",
+      key: outsiderKey.urString(),
+      keyId: null,
+      walletManaged: false,
+    });
 
-    // Render QR codes immediately after key generation
+    // Render QR codes / wallet key indicators
     $qrList.innerHTML = "";
-    for (const { name, key } of recipientKeyPairs) {
+    for (const { name, key, keyId, walletManaged } of recipientKeyPairs) {
       const card = document.createElement("div");
       card.className = "qr-card";
 
-      const qr = qrcode(0, "L");
-      qr.addData(key);
-      qr.make();
+      if (walletManaged) {
+        // Show wallet icon instead of QR code
+        const icon = document.createElement("div");
+        icon.style.cssText =
+          "width:128px;height:128px;display:flex;align-items:center;" +
+          "justify-content:center;font-size:3rem;background:#f0f0f0;border-radius:8px;margin:0 auto 0.5rem";
+        icon.textContent = "🔐";
+        card.appendChild(icon);
 
-      const canvas = document.createElement("canvas");
-      const size = 128;
-      const cellSize = Math.floor(size / qr.getModuleCount());
-      canvas.width = cellSize * qr.getModuleCount();
-      canvas.height = cellSize * qr.getModuleCount();
-      const ctx = canvas.getContext("2d");
-      for (let row = 0; row < qr.getModuleCount(); row++) {
-        for (let col = 0; col < qr.getModuleCount(); col++) {
-          ctx.fillStyle = qr.isDark(row, col) ? "#000" : "#fff";
-          ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+        const keyIdLabel = document.createElement("div");
+        keyIdLabel.style.cssText = "font-size:0.65rem;color:#666;font-family:monospace";
+        keyIdLabel.textContent = `wallet:${keyId.slice(0, 8)}`;
+        card.appendChild(keyIdLabel);
+      } else {
+        const qr = qrcode(0, "L");
+        qr.addData(key);
+        qr.make();
+
+        const canvas = document.createElement("canvas");
+        const size = 128;
+        const cellSize = Math.floor(size / qr.getModuleCount());
+        canvas.width = cellSize * qr.getModuleCount();
+        canvas.height = cellSize * qr.getModuleCount();
+        const ctx = canvas.getContext("2d");
+        for (let row = 0; row < qr.getModuleCount(); row++) {
+          for (let col = 0; col < qr.getModuleCount(); col++) {
+            ctx.fillStyle = qr.isDark(row, col) ? "#000" : "#fff";
+            ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+          }
         }
+        card.appendChild(canvas);
       }
 
       const label = document.createElement("div");
       label.className = "qr-name";
       label.textContent = name;
 
-      card.appendChild(canvas);
       card.appendChild(label);
       $qrList.appendChild(card);
     }
@@ -773,6 +867,113 @@ $btnDemo.addEventListener("click", async () => {
     log(`Failed to load demo files: ${e.message}`, "err");
   }
 });
+
+// ---------------------------------------------------------------------------
+// 7. Decrypt with Wallet — request key from wallet and decrypt envelope
+// ---------------------------------------------------------------------------
+
+const IPFS_GATEWAY = "https://paseo-ipfs.polkadot.io";
+
+if ($btnDecrypt) {
+  $btnDecrypt.addEventListener("click", async () => {
+    const cidStr = $decCidInput.value.trim();
+    const keyId = $decKeyIdInput.value.trim();
+
+    if (!cidStr) {
+      $decStatus.textContent = "Please enter a CID.";
+      $decStatus.className = "status err";
+      return;
+    }
+    if (!keyId) {
+      $decStatus.textContent = "Please enter a Key ID.";
+      $decStatus.className = "status err";
+      return;
+    }
+    if (!providerAccounts.length) {
+      $decStatus.textContent = "Please log in first.";
+      $decStatus.className = "status err";
+      return;
+    }
+
+    $decStatus.textContent = "Requesting key from wallet...";
+    $decStatus.className = "status info";
+
+    try {
+      // Request key from wallet
+      const result = await hostApi.signRaw({
+        tag: "v1",
+        value: {
+          address: toHex(providerAccounts[0].publicKey),
+          data: {
+            tag: "Bytes",
+            value: new TextEncoder().encode(
+              JSON.stringify({ type: "ENVELOPE:GET_KEY", keyId }),
+            ),
+          },
+        },
+      });
+
+      let urString = null;
+      result.match(
+        (r) => {
+          const sig = r.value.signature;
+          if (sig.startsWith("0xee")) {
+            try {
+              const hexStr = sig.slice(4);
+              const bytes = new Uint8Array(
+                hexStr.match(/.{1,2}/g).map((b) => parseInt(b, 16)),
+              );
+              const json = new TextDecoder().decode(bytes);
+              const response = JSON.parse(json);
+              if (response.urString) {
+                urString = response.urString;
+              } else if (response.error) {
+                $decStatus.textContent = `Wallet error: ${response.error}`;
+                $decStatus.className = "status err";
+              }
+            } catch (e) {
+              $decStatus.textContent = `Failed to parse wallet response: ${e.message}`;
+              $decStatus.className = "status err";
+            }
+          }
+        },
+        (e) => {
+          $decStatus.textContent = `Wallet request failed: ${e.value?.name || e}`;
+          $decStatus.className = "status err";
+        },
+      );
+
+      if (!urString) return;
+
+      $decStatus.textContent = "Fetching from IPFS...";
+      $decStatus.className = "status info";
+
+      const res = await fetch(`${IPFS_GATEWAY}/ipfs/${cidStr}`);
+      if (!res.ok) throw new Error(`IPFS fetch failed: ${res.status}`);
+      const envelopeBytes = new Uint8Array(await res.arrayBuffer());
+
+      $decStatus.textContent = "Decrypting...";
+      const recipientKey = PrivateKeyBase.fromURString(urString);
+      const envl = envelopeFromBytes(envelopeBytes);
+      const decrypted = envl.decryptSubjectToRecipient(recipientKey);
+      const html = decrypted.subject().asText();
+
+      const blob = new Blob([html], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      $decViewer.src = url;
+      $decViewer.style.display = "block";
+      $decViewerSection.style.display = "block";
+
+      $decStatus.textContent = "Decrypted successfully.";
+      $decStatus.className = "status ok";
+      log("Decrypted document via wallet key", "ok");
+    } catch (e) {
+      $decStatus.textContent = `Decryption failed: ${e.message}`;
+      $decStatus.className = "status err";
+      log(`Decrypt failed: ${e.message}`, "err");
+    }
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Boot

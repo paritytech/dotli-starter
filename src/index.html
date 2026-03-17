@@ -348,6 +348,10 @@
             </div>
             <div id="recipient-count" class="recipient-count"></div>
             <ul id="recipient-list" class="recipient-list"></ul>
+            <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.8rem;color:#888;margin-bottom:0.5rem;cursor:pointer">
+                <input type="checkbox" id="wallet-encrypt" checked />
+                Store keys in wallet (recommended)
+            </label>
             <div class="row">
                 <button id="btn-send" disabled>Send</button>
                 <button id="btn-demo" class="secondary">Demo App</button>
@@ -358,6 +362,32 @@
         <section id="qr-section" style="display:none">
             <h2>Recipient Keys</h2>
             <div id="qr-list"></div>
+        </section>
+
+        <!-- Decrypt with Wallet: request key from wallet and decrypt -->
+        <section>
+            <h2>Decrypt with Wallet</h2>
+            <input
+                id="dec-cid-input"
+                type="text"
+                placeholder="CID (e.g. bafk...)"
+            />
+            <input
+                id="dec-keyid-input"
+                type="text"
+                placeholder="Key ID (from wallet)"
+            />
+            <button id="btn-decrypt" class="secondary">Decrypt</button>
+            <div id="dec-status" class="status info" style="margin-top:0.35rem"></div>
+        </section>
+
+        <section id="dec-viewer-section" style="display:none">
+            <h2>Decrypted Content</h2>
+            <iframe
+                id="dec-viewer"
+                sandbox="allow-same-origin allow-scripts"
+                style="width:100%;border:1px solid #333;border-radius:4px;background:#111;min-height:300px;display:none"
+            ></iframe>
         </section>
 
         <!-- Log: timestamped output for all SDK operations -->
