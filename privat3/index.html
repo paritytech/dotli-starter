@@ -91,8 +91,8 @@
                 border: 1px solid #333;
                 border-radius: 4px;
                 background: #111;
-                min-height: 300px;
-                display: none;
+                min-height: 100px;
+                padding: 1rem;
             }
             #scanner-container {
                 position: relative;
@@ -163,7 +163,7 @@
 
         <section id="viewer-section" style="display:none">
             <h2>Decrypted Content</h2>
-            <iframe id="viewer" sandbox="allow-same-origin allow-scripts"></iframe>
+            <div id="viewer"></div>
         </section>
 
         <section>
@@ -235,6 +235,18 @@
 
             let scanning = false;
             let stream = null;
+
+            /** Render decrypted HTML into the viewer div using a shadow DOM for style isolation */
+            function renderDecrypted(html) {
+                // Clear previous content
+                $viewer.innerHTML = "";
+                // Use shadow DOM so the decrypted page styles don't leak into this page
+                const shadow = $viewer.attachShadow
+                    ? $viewer.attachShadow({ mode: "open" })
+                    : $viewer; // fallback: render directly if shadow DOM unavailable
+                shadow.innerHTML = html;
+                $viewerSection.style.display = "block";
+            }
 
             function setStatus(msg, level = "info") {
                 $status.textContent = msg;
@@ -334,16 +346,10 @@
                     const decrypted = envelope.decryptSubjectToRecipient(recipientKey);
                     const html = decrypted.subject().asText();
 
-                    const blob = new Blob([html], { type: "text/html" });
-                    const url = URL.createObjectURL(blob);
-                    $viewer.src = url;
-                    $viewer.style.display = "block";
-                    $viewerSection.style.display = "block";
-
+                    renderDecrypted(html);
                     setStatus("Decrypted successfully.", "ok");
                 } catch (e) {
                     setStatus(`Decryption failed: ${e.message}`, "err");
-                    $viewer.style.display = "none";
                     $viewerSection.style.display = "none";
                 }
             });
@@ -425,15 +431,10 @@
                     const decrypted = envelope.decryptSubjectToRecipient(recipientKey);
                     const html = decrypted.subject().asText();
 
-                    const blob = new Blob([html], { type: "text/html" });
-                    const url = URL.createObjectURL(blob);
-                    $viewer.src = url;
-                    $viewer.style.display = "block";
-                    $viewerSection.style.display = "block";
+                    renderDecrypted(html);
                     setStatus("Decrypted successfully.", "ok");
                 } catch (e) {
                     setStatus(`Decryption failed: ${e.message}`, "err");
-                    $viewer.style.display = "none";
                     $viewerSection.style.display = "none";
                 }
             });
