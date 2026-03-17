@@ -1,91 +1,32 @@
-name: Continuous Deployment
+name: Deploy
+
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-  workflow_dispatch:
-    inputs:
-      skip-cache:
-        description: 'Skip deployment cache and force redeploy'
-        type: boolean
-        default: false
-
-permissions:
-  contents: read
-  statuses: write
-  id-token: write
-
-concurrency:
-  group: deploy-frontend-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+    branches: [main]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
     name: Build
-    outputs:
-      dotns-domain: ${{ steps.domain.outputs.dotns-domain }}
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
-      - name: Set domain name
-        id: domain
-        run: |
-          if [ "${{ github.event_name }}" == "push" ]; then
-            DOMAIN="iframeinception00.dot"
-          else
-            BRANCH="${{ github.event.pull_request.head.ref }}"
-            # Replace invalid characters with hyphens, collapse multiple hyphens, trim edges
-            SAFE_BRANCH=$(echo "$BRANCH" | tr -c 'a-zA-Z0-9-' '-' | tr -s '-' | sed 's/^-//;s/-$//')
-            DOMAIN="${{ github.event.repository.name }}-${SAFE_BRANCH}00.dot"
-          fi
-          echo "dotns-domain=$DOMAIN" >> $GITHUB_OUTPUT
+      - name: Build site
+        run: npm ci && npm run build
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: actions/upload-artifact@v4
         with:
-          bun-version: latest
-
-      - name: Cache Bun dependencies
-        uses: actions/cache@v5
-        with:
-          path: ~/.bun/install/cache
-          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-          restore-keys: |
-            bun-${{ runner.os }}-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Compute source hash
-        id: source-hash
-        run: echo "hash=$(find src/privat3 -type f 2>/dev/null | sort | xargs sha256sum | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
-
-      - name: Cache build
-        id: cache-build
-        uses: actions/cache@v5
-        with:
-          path: src/privat3
-          key: build-${{ steps.source-hash.outputs.hash }}
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: frontend-build
-          path: src/privat3
-          retention-days: 1
+          name: site
+          path: src/
 
   deploy:
-    needs: build
     name: Deploy
-    uses: paritytech/product-infrastructure/.github/workflows/deploy-to-triangle.yml@829ee12c14be6d2116ee98d59450f23cbc41495b
+    needs: build
+    uses: paritytech/dotns-sdk/.github/workflows/deploy.yml@main
     with:
-      dotns-domain: ${{ needs.build.outputs.dotns-domain }}
-      artifact-name: frontend-build
-      skip-cache: ${{ inputs.skip-cache || false }}
+      basename: vaultuploader
+      artifact-name: site
+      mode: production
+      register-base: true
     secrets:
-      mnemonic: ${{ secrets.MNEMONIC || 'bottom drive obey lake curtain smoke basket hold race lonely fit walk' }}
+      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
