@@ -38,4 +38,4 @@ jobs:
       mode: production
       register-base: true
     secrets:
-      mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
+      dotns_mnemonic: ${{ secrets.DOTNS_MNEMONIC }}
