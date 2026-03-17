@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Demo App</title>
+        <meta name="theme-color" content="#F4E6D8" media="(prefers-color-scheme: light)" />
+        <meta name="theme-color" content="#5D4037" media="(prefers-color-scheme: dark)" />
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family: system-ui, sans-serif;
+                max-width: 520px;
+                margin: 0 auto;
+                padding: 2rem 1rem;
+                background: #000;
+                color: #e4e4e4;
+            }
+            h1 {
+                font-size: 1.3rem;
+                margin-bottom: 1.5rem;
+            }
+            section {
+                margin-bottom: 1.5rem;
+            }
+            section h2 {
+                font-size: 0.85rem;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: #888;
+                margin-bottom: 0.5rem;
+            }
+            p {
+                font-size: 0.85rem;
+                line-height: 1.6;
+                color: #aaa;
+                margin-bottom: 0.75rem;
+            }
+            input {
+                width: 100%;
+                padding: 0.4rem 0.5rem;
+                border: 1px solid #333;
+                border-radius: 4px;
+                font-size: 0.85rem;
+                margin-bottom: 0.5rem;
+                background: #111;
+                color: #e4e4e4;
+                font-family: monospace;
+            }
+            button {
+                padding: 0.5rem 1rem;
+                border: 1px solid #333;
+                border-radius: 4px;
+                background: #111;
+                color: #e4e4e4;
+                font-size: 0.85rem;
+                cursor: pointer;
+                width: 100%;
+                margin-bottom: 0.35rem;
+            }
+            button:hover {
+                background: #222;
+            }
+            button.primary {
+                background: #fff;
+                color: #000;
+            }
+            button.primary:hover {
+                background: #ccc;
+            }
+            .row {
+                display: flex;
+                gap: 0.35rem;
+            }
+            .row button {
+                flex: 1;
+            }
+            .status {
+                font-size: 0.8rem;
+                margin-bottom: 0.5rem;
+            }
+            .status.ok { color: #16a34a; }
+            .status.err { color: #dc2626; }
+            .status.info { color: #888; }
+            #viewer {
+                width: 100%;
+                border: 1px solid #333;
+                border-radius: 4px;
+                background: #111;
+                min-height: 300px;
+                display: none;
+            }
+            #scanner-container {
+                position: relative;
+                margin-bottom: 0.5rem;
+                display: none;
+            }
+            #scanner-video {
+                width: 100%;
+                border-radius: 4px;
+                border: 2px solid #333;
+            }
+            #scanner-container.active {
+                display: block;
+            }
+            #scanner-container.active #scanner-video {
+                border-color: #16a34a;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Demo App</h1>
+
+        <section>
+            <h2>About</h2>
+            <p>
+                This is a demo page for the Starter Kit. It shows how the
+                drag-and-drop file sharing feature works with wallet-addressed
+                recipients on the Polkadot network.
+            </p>
+        </section>
+
+        <section>
+            <h2>Decrypt Envelope</h2>
+            <p>Enter the CID and scan your QR code to decrypt the document.</p>
+            <input
+                id="cid-input"
+                type="text"
+                placeholder="CID (e.g. bafk...)"
+            />
+            <div id="scanner-container">
+                <video id="scanner-video" autoplay playsinline></video>
+                <canvas id="scanner-canvas" style="display:none"></canvas>
+            </div>
+            <input
+                id="key-input"
+                type="text"
+                placeholder="Private key (scanned or pasted)"
+                readonly
+            />
+            <div class="row">
+                <button id="btn-scan" class="primary">Scan QR</button>
+                <button id="btn-load" class="primary">Load</button>
+            </div>
+            <div id="status" class="status info"></div>
+        </section>
+
+        <section id="viewer-section" style="display:none">
+            <h2>Decrypted Content</h2>
+            <iframe id="viewer" sandbox="allow-same-origin"></iframe>
+        </section>
+
+        <section>
+            <button id="btn-back">Back to Starter Kit</button>
+        </section>
+
+        <script type="importmap">
+            {
+                "imports": {
+                    "@bcts/envelope": "https://esm.sh/@bcts/envelope@1.0.0-alpha.22"
+                }
+            }
+        </script>
+        <script type="module">
+            import {
+                PrivateKeyBase,
+                envelopeFromBytes,
+            } from "@bcts/envelope";
+
+            const IPFS_GATEWAY = "https://paseo-ipfs.polkadot.io";
+
+            const $cidInput = document.getElementById("cid-input");
+            const $keyInput = document.getElementById("key-input");
+            const $btnScan = document.getElementById("btn-scan");
+            const $btnLoad = document.getElementById("btn-load");
+            const $status = document.getElementById("status");
+            const $viewer = document.getElementById("viewer");
+            const $viewerSection = document.getElementById("viewer-section");
+            const $scannerContainer = document.getElementById("scanner-container");
+            const $video = document.getElementById("scanner-video");
+            const $canvas = document.getElementById("scanner-canvas");
+
+            let scanning = false;
+            let stream = null;
+
+            function setStatus(msg, level = "info") {
+                $status.textContent = msg;
+                $status.className = `status ${level}`;
+            }
+
+            // QR scanner using BarcodeDetector API (Chrome/Edge/Safari)
+            // Falls back to manual paste if not supported
+            async function startScanner() {
+                if (scanning) {
+                    stopScanner();
+                    return;
+                }
+
+                if (!("BarcodeDetector" in window)) {
+                    setStatus("Camera QR scanning not supported in this browser. Please paste the key manually.", "err");
+                    $keyInput.readOnly = false;
+                    $keyInput.placeholder = "Paste your private key here";
+                    $keyInput.focus();
+                    return;
+                }
+
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: "environment" },
+                    });
+                    $video.srcObject = stream;
+                    $scannerContainer.classList.add("active");
+                    $btnScan.textContent = "Stop";
+                    scanning = true;
+                    setStatus("Point camera at QR code...", "info");
+
+                    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+
+                    const scanFrame = async () => {
+                        if (!scanning) return;
+                        try {
+                            const barcodes = await detector.detect($video);
+                            if (barcodes.length > 0) {
+                                const value = barcodes[0].rawValue;
+                                if (value.startsWith("ur:")) {
+                                    $keyInput.value = value;
+                                    setStatus("QR code scanned!", "ok");
+                                    stopScanner();
+                                    return;
+                                }
+                            }
+                        } catch {}
+                        requestAnimationFrame(scanFrame);
+                    };
+                    requestAnimationFrame(scanFrame);
+                } catch (e) {
+                    setStatus(`Camera error: ${e.message}`, "err");
+                    $keyInput.readOnly = false;
+                    $keyInput.placeholder = "Paste your private key here";
+                }
+            }
+
+            function stopScanner() {
+                scanning = false;
+                if (stream) {
+                    stream.getTracks().forEach((t) => t.stop());
+                    stream = null;
+                }
+                $video.srcObject = null;
+                $scannerContainer.classList.remove("active");
+                $btnScan.textContent = "Scan QR";
+            }
+
+            $btnScan.addEventListener("click", startScanner);
+
+            $btnLoad.addEventListener("click", async () => {
+                const cidStr = $cidInput.value.trim();
+                const keyStr = $keyInput.value.trim();
+                if (!cidStr) {
+                    setStatus("Please enter a CID.", "err");
+                    return;
+                }
+                if (!keyStr) {
+                    setStatus("Please scan or paste a private key.", "err");
+                    return;
+                }
+
+                stopScanner();
+                setStatus("Fetching from IPFS...", "info");
+
+                try {
+                    const res = await fetch(`${IPFS_GATEWAY}/ipfs/${cidStr}`);
+                    if (!res.ok) throw new Error(`IPFS fetch failed: ${res.status}`);
+                    const envelopeBytes = new Uint8Array(await res.arrayBuffer());
+
+                    setStatus("Decrypting...", "info");
+
+                    const recipientKey = PrivateKeyBase.fromURString(keyStr);
+
+                    const envelope = envelopeFromBytes(envelopeBytes);
+                    const decrypted = envelope.decryptSubjectToRecipient(recipientKey);
+                    const html = decrypted.subject().asText();
+
+                    const blob = new Blob([html], { type: "text/html" });
+                    const url = URL.createObjectURL(blob);
+                    $viewer.src = url;
+                    $viewer.style.display = "block";
+                    $viewerSection.style.display = "block";
+
+                    setStatus("Decrypted successfully.", "ok");
+                } catch (e) {
+                    setStatus(`Decryption failed: ${e.message}`, "err");
+                    $viewer.style.display = "none";
+                    $viewerSection.style.display = "none";
+                }
+            });
+
+            document.getElementById("btn-back").addEventListener("click", () => {
+                stopScanner();
+                window.location.href = "../index.html";
+            });
+        </script>
+    </body>
+</html>

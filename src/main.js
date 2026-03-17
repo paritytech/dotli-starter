@@ -70,6 +70,18 @@ import {
 import { Binary, createClient } from "polkadot-api";
 import { toHex } from "polkadot-api/utils";
 import { getWsProvider } from "polkadot-api/ws-provider";
+import { withPolkadotSdkCompat } from "polkadot-api/polkadot-sdk-compat";
+import { Keyring } from "@polkadot/keyring";
+import { cryptoWaitReady, blake2AsU8a } from "@polkadot/util-crypto";
+import { getPolkadotSigner } from "@polkadot-api/signer";
+import { CID } from "multiformats/cid";
+import * as Digest from "multiformats/hashes/digest";
+import {
+  Envelope,
+  SymmetricKey,
+  PrivateKeyBase,
+  envelopeToBytes,
+} from "@bcts/envelope";
 
 // ---------------------------------------------------------------------------
 // Chain config
@@ -86,6 +98,13 @@ const CHAIN = {
   genesis: "0xd6eec26135305a8ad257a20d003357284c8aa03d0bdb2b357ab0a22371e11ef2",
   wsUrl: "wss://sys.ibp.network/asset-hub-paseo",
 };
+
+const BULLETIN_CHAIN = {
+  name: "Polkadot Bulletin",
+  wsUrl: "wss://paseo-bulletin-rpc.polkadot.io",
+};
+
+
 
 // ---------------------------------------------------------------------------
 // DOM refs
@@ -104,6 +123,17 @@ const $storageKey = document.getElementById("storage-key");
 const $storageValue = document.getElementById("storage-value");
 const $btnChainRead = document.getElementById("btn-chain-read");
 const $btnClear = document.getElementById("btn-clear");
+const $dropZone = document.getElementById("drop-zone");
+const $fileInput = document.getElementById("file-input");
+const $fileList = document.getElementById("file-list");
+const $recipientInput = document.getElementById("recipient-input");
+const $btnAddRecipient = document.getElementById("btn-add-recipient");
+const $recipientList = document.getElementById("recipient-list");
+const $recipientCount = document.getElementById("recipient-count");
+const $btnSend = document.getElementById("btn-send");
+const $btnDemo = document.getElementById("btn-demo");
+const $qrSection = document.getElementById("qr-section");
+const $qrList = document.getElementById("qr-list");
 
 // ---------------------------------------------------------------------------
 // State
@@ -112,6 +142,9 @@ let injected = null; // { accounts, signer } from the extension enable factory
 let accounts = []; // fetched account list (address strings + names)
 let providerAccounts = []; // accounts with raw publicKey bytes (from accountsProvider)
 let accountsProvider = null; // SDK accountsProvider instance
+let uploadedFiles = []; // files from drag-and-drop or file picker
+let recipients = []; // list of recipient names
+
 
 // All interactive buttons — disabled until SDK is ready and user is logged in
 const interactiveButtons = [
@@ -292,23 +325,31 @@ $btnRemark.addEventListener("click", async () => {
     });
 
     log("Signing & submitting...");
+    console.log("[dApp] calling signSubmitAndWatch...");
 
     // signSubmitAndWatch returns an Observable. Subscribe to it to track
     // the transaction through its lifecycle until finalization.
     await new Promise((resolve, reject) => {
       tx.signSubmitAndWatch(signer).subscribe({
         next(ev) {
-          if (ev.type === "txBestBlocksState" && ev.found) {
-            log("Included in best block, waiting for finalization...");
+          console.log("[dApp] signSubmitAndWatch event:", ev.type, ev);
+          if (ev.type === "txBestBlocksState") {
+            log(`Best block state: found=${ev.found}`);
           } else if (ev.type === "finalized") {
             log(
               `Finalized in block ${ev.block.hash.slice(0, 18)}... (index ${ev.block.index})`,
               "ok",
             );
             resolve();
+          } else {
+            log(`TX event: ${ev.type}`);
           }
         },
-        error: reject,
+        error(e) {
+          console.error("[dApp] signSubmitAndWatch error:", e);
+          log(`Submit error: ${e.message || e}`, "err");
+          reject(e);
+        },
       });
     });
   } catch (e) {
@@ -452,6 +493,284 @@ $btnChainRead.addEventListener("click", async () => {
     log(`Chain read failed: ${e.message}`, "err");
   } finally {
     $btnChainRead.disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 6. Drag File — encrypt files and upload via dotns-cli
+// ---------------------------------------------------------------------------
+// The drop zone accepts files or directories. encrypted.html is encrypted
+// using @bcts/envelope with per-recipient keys. Upload to the Bulletin
+// chain is handled by dotns-cli (run: npm run send -- <addresses>).
+// ---------------------------------------------------------------------------
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function updateSendButton() {
+  $btnSend.disabled = uploadedFiles.length === 0 || recipients.length === 0;
+}
+
+function addFile(file) {
+  if (uploadedFiles.find((f) => f.name === file.name)) return;
+  uploadedFiles.push(file);
+  log(`Added: ${file.name} (${formatFileSize(file.size)})`, "ok");
+  renderFileList();
+  updateSendButton();
+}
+
+function renderFileList() {
+  if (uploadedFiles.length === 0) {
+    $dropZone.classList.remove("has-file");
+    $fileList.innerHTML = "";
+    return;
+  }
+  $dropZone.classList.add("has-file");
+  $fileList.innerHTML = uploadedFiles
+    .map(
+      (f, i) =>
+        `<div class="file-entry"><span><span class="file-name">${f.name}</span>` +
+        `<span class="file-size">(${formatFileSize(f.size)})</span></span>` +
+        `<button class="file-remove" data-idx="${i}">&times;</button></div>`,
+    )
+    .join("");
+  $fileList.querySelectorAll(".file-remove").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      uploadedFiles.splice(Number(btn.dataset.idx), 1);
+      renderFileList();
+      updateSendButton();
+    });
+  });
+}
+
+$dropZone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  $dropZone.classList.add("over");
+});
+
+$dropZone.addEventListener("dragleave", () => {
+  $dropZone.classList.remove("over");
+});
+
+$dropZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  $dropZone.classList.remove("over");
+  for (const file of e.dataTransfer.files) addFile(file);
+});
+
+$dropZone.addEventListener("click", () => {
+  $fileInput.click();
+});
+
+$fileInput.addEventListener("change", () => {
+  for (const file of $fileInput.files) addFile(file);
+});
+
+function renderRecipients() {
+  $recipientCount.textContent =
+    recipients.length > 0 ? `${recipients.length} recipient(s)` : "";
+  $recipientList.innerHTML = recipients
+    .map(
+      (name, i) =>
+        `<li><span>${name}</span><button data-idx="${i}">&times;</button></li>`,
+    )
+    .join("");
+  $recipientList.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      recipients.splice(idx, 1);
+      renderRecipients();
+    });
+  });
+  updateSendButton();
+}
+
+function addRecipient() {
+  const name = $recipientInput.value.trim();
+  if (!name) return;
+  if (recipients.includes(name)) {
+    log("Duplicate name — already in the list", "err");
+    return;
+  }
+  recipients.push(name);
+  $recipientInput.value = "";
+  log(`Added recipient: ${name}`, "ok");
+  renderRecipients();
+}
+
+$btnAddRecipient.addEventListener("click", addRecipient);
+$recipientInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") addRecipient();
+});
+
+// ---------------------------------------------------------------------------
+// Bulletin chain helpers
+// ---------------------------------------------------------------------------
+
+// Compute CID with blake2b-256 (0xb220), raw codec (0x55).
+function computeCid(bytes) {
+  const hash = blake2AsU8a(bytes);
+  const mh = Digest.create(0xb220, hash);
+  return CID.createV1(0x55, mh);
+}
+
+// Submit tx and wait for best-block inclusion (same event handling as dotns).
+function submitAndWait(tx, signer, opts) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      sub.unsubscribe();
+      reject(new Error("Transaction timed out after 180s"));
+    }, 180_000);
+
+    const sub = tx.signSubmitAndWatch(signer, opts).subscribe({
+      next(ev) {
+        log(`  TX: ${ev.type}`, "info");
+        if (ev.type === "txBestBlocksState" && ev.found) {
+          clearTimeout(timeout);
+          sub.unsubscribe();
+          resolve(ev);
+        } else if (ev.type === "finalized") {
+          clearTimeout(timeout);
+          sub.unsubscribe();
+          resolve(ev);
+        }
+      },
+      error(e) {
+        clearTimeout(timeout);
+        sub.unsubscribe();
+        log(`  TX error: ${e.message || e}`, "err");
+        reject(e);
+      },
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Send — encrypt encrypted.html + store on Bulletin chain
+// ---------------------------------------------------------------------------
+$btnSend.addEventListener("click", async () => {
+  if (uploadedFiles.length === 0 || recipients.length === 0) return;
+
+  $btnSend.disabled = true;
+  $btnSend.textContent = "Sending...";
+
+  await cryptoWaitReady();
+  const keyring = new Keyring({ type: "sr25519" });
+  const alice = keyring.addFromUri("//Alice");
+  const signer = getPolkadotSigner(
+    alice.publicKey,
+    "Sr25519",
+    (input) => alice.sign(input),
+  );
+
+  log(`Using Alice (${alice.address.slice(0, 16)}...)`);
+
+  const client = createClient(
+    withPolkadotSdkCompat(getWsProvider(BULLETIN_CHAIN.wsUrl)),
+  );
+
+  try {
+    log(`Connecting to ${BULLETIN_CHAIN.name}...`);
+    await client.getFinalizedBlock();
+    log("Connected", "ok");
+
+    const api = client.getUnsafeApi();
+
+    // Find encrypted.html in the uploaded files
+    const encFile = uploadedFiles.find((f) => f.name === "encrypted.html");
+    if (!encFile) {
+      log("No encrypted.html found in uploaded files", "err");
+      return;
+    }
+
+    // Encrypt with envelope
+    log("Encrypting encrypted.html...");
+    const content = new TextDecoder().decode(
+      new Uint8Array(await encFile.arrayBuffer()),
+    );
+    const symKey = SymmetricKey.new();
+    let envelope = Envelope.new(content).encryptSubject(symKey);
+
+    const recipientKeyPairs = [];
+    for (const name of recipients) {
+      const recipientKey = PrivateKeyBase.generate();
+      envelope = envelope.addRecipient(recipientKey.publicKeys(), symKey);
+      recipientKeyPairs.push({ name, key: recipientKey.urString() });
+      log(`${name}: ${recipientKey.urString()}`, "ok");
+    }
+
+    const fileBytes = new Uint8Array(envelopeToBytes(envelope));
+
+    // Generate an outsider key (should NOT be able to decrypt)
+    const outsiderKey = PrivateKeyBase.generate();
+    log(`Outsider key (no access): ${outsiderKey.urString()}`, "ok");
+    recipientKeyPairs.push({ name: "Outsider (no access)", key: outsiderKey.urString() });
+
+    // Render QR codes immediately after key generation
+    $qrList.innerHTML = "";
+    for (const { name, key } of recipientKeyPairs) {
+      const card = document.createElement("div");
+      card.className = "qr-card";
+
+      const qr = qrcode(0, "L");
+      qr.addData(key);
+      qr.make();
+
+      const canvas = document.createElement("canvas");
+      const size = 128;
+      const cellSize = Math.floor(size / qr.getModuleCount());
+      canvas.width = cellSize * qr.getModuleCount();
+      canvas.height = cellSize * qr.getModuleCount();
+      const ctx = canvas.getContext("2d");
+      for (let row = 0; row < qr.getModuleCount(); row++) {
+        for (let col = 0; col < qr.getModuleCount(); col++) {
+          ctx.fillStyle = qr.isDark(row, col) ? "#000" : "#fff";
+          ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+        }
+      }
+
+      const label = document.createElement("div");
+      label.className = "qr-name";
+      label.textContent = name;
+
+      card.appendChild(canvas);
+      card.appendChild(label);
+      $qrList.appendChild(card);
+    }
+    $qrSection.style.display = "block";
+
+    // Store on Bulletin chain — blake2b-256, raw codec 0x55
+    const cid = computeCid(fileBytes);
+    log(`CID: ${cid.toString()}`, "ok");
+
+    log("Storing on Bulletin chain...");
+    const tx = api.tx.TransactionStorage.store({
+      data: Binary.fromBytes(fileBytes),
+    });
+    await submitAndWait(tx, signer, {});
+    log("Stored", "ok");
+  } catch (e) {
+    log(`Send failed: ${e.message}`, "err");
+  } finally {
+    client.destroy();
+    $btnSend.disabled = false;
+    $btnSend.textContent = "Send";
+    updateSendButton();
+  }
+});
+
+// Demo App — load the privat3 directory files into the upload area
+$btnDemo.addEventListener("click", async () => {
+  try {
+    const res = await fetch("privat3/encrypted.html");
+    const blob = await res.blob();
+    addFile(new File([blob], "encrypted.html", { type: "text/html" }));
+    log("Loaded encrypted.html", "ok");
+  } catch (e) {
+    log(`Failed to load demo files: ${e.message}`, "err");
   }
 });
 

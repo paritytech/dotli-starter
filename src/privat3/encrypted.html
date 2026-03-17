@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Encrypted Document</title>
+        <style>
+            body {
+                font-family: system-ui, sans-serif;
+                max-width: 520px;
+                margin: 0 auto;
+                padding: 2rem 1rem;
+                background: #0a0a0a;
+                color: #e4e4e4;
+            }
+            h1 { font-size: 1.3rem; margin-bottom: 1rem; }
+            h2 { font-size: 0.95rem; color: #888; margin: 1.5rem 0 0.5rem; }
+            p { font-size: 0.85rem; line-height: 1.7; color: #aaa; margin-bottom: 0.75rem; }
+            .highlight { color: #16a34a; font-weight: 600; }
+            .divider { border: none; border-top: 1px solid #222; margin: 1.5rem 0; }
+        </style>
+    </head>
+    <body>
+        <h1>Encrypted Document</h1>
+        <p>
+            This is a special document that can only be accessed by the chosen
+            recipients. If you are reading this, your private key was used to
+            successfully decrypt the envelope stored on the Polkadot Bulletin Chain.
+        </p>
+
+        <hr class="divider" />
+
+        <h2>Confidential Notice</h2>
+        <p>
+            The contents of this document are intended solely for the authorized
+            recipient(s). Unauthorized access, distribution, or reproduction of
+            this material is strictly prohibited.
+        </p>
+
+        <h2>About This Demo</h2>
+        <p>
+            This page was encrypted using the
+            <span class="highlight">@bcts/envelope</span> library, which provides
+            selective per-recipient encryption. Each recipient receives a unique
+            private key that grants them — and only them — access to the decrypted
+            content.
+        </p>
+        <p>
+            The encrypted payload was stored on-chain via the Bulletin Chain's
+            <span class="highlight">TransactionStorage</span> pallet and is
+            retrievable through any IPFS gateway using the content CID.
+        </p>
+
+        <h2>How It Works</h2>
+        <p>
+            1. The sender uploads a file and specifies recipient names.<br />
+            2. A symmetric key encrypts the document content.<br />
+            3. The symmetric key is then encrypted to each recipient's public key.<br />
+            4. The sealed envelope is stored on the Bulletin Chain.<br />
+            5. Recipients scan their QR code and enter the CID to decrypt.
+        </p>
+
+        <hr class="divider" />
+
+        <p style="color: #555; font-size: 0.75rem; text-align: center;">
+            Powered by Polkadot Bulletin Chain &middot; Envelope Encryption &middot; IPFS
+        </p>
+    </body>
+</html>
