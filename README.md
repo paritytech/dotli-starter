@@ -1,52 +1,69 @@
-# Triangle Starter Kit
+# dotli Starter Template
 
-Takes `src/index.html` + `src/main.js` (with external ESM dependencies) and builds a single self-contained `dist/index.html`.
+Simple dotli starter built with plain HTML, CSS, and JavaScript. It uses npm-installed packages and a Vite-style workflow, without React.
 
 ## Prerequisites
 
 - Node.js >= 18
-- [DotNS CLI](https://github.com/paritytech/dotns-sdk) (for deployment only)
 
 ## Install
 
-```
+```bash
 npm install
 ```
 
-## Develop
-
-```
-npm run dev
-```
-
-Opens a local server at `http://localhost:8000` serving `src/` directly (uses import maps for dependencies).
-
 ## Build
 
-```
+```bash
 npm run build
 ```
 
-Bundles all JS dependencies into a single `dist/index.html` via esbuild.
+Builds the production app into `dist/`.
+
+## Preview
+
+```bash
+npm run preview
+```
+
+Serves the built app locally from `dist/`. You can then open it in the Polkadot Desktop or under https://dot.li/localhost:4173.
+
+Note:
+- For host testing, prefer `build` + `preview` or a deployed `dist/` bundle. Vite dev mode can run into host CSP restrictions.
 
 ## Deploy
 
-Requires the DotNS CLI installed and linked:
+This starter uses [`bulletin-deploy`](https://github.com/paritytech/bulletin-deploy). The older local DotNS CLI deploy flow has been removed.
 
-```
-cd dotns-sdk-main/packages/cli
-bun install && bun run build && npm link
-```
+### Local deploy
 
-IMPORTANT (before proceeding): 
-- A small manual step is required, fund your account (SS58) with https://faucet.polkadot.io/
-- Authorize your account to write to bulletin: https://paritytech.github.io/polkadot-bulletin-chain/
+Install `bulletin-deploy` and its IPFS prerequisite:
 
-Set your mnemonic and deploy:
+```bash
+npm install -g bulletin-deploy
 
-```
-export DOTNS_MNEMONIC="your twelve word mnemonic phrase goes here ..."
-./deploy.sh <name>
+# macOS
+brew install ipfs
+ipfs init
 ```
 
-Your site will be live at `https://<name>.dot.li`.
+Build and deploy:
+
+```bash
+npm run build
+bulletin-deploy ./dist my-app00.dot
+```
+
+Your site will be live at `https://my-app00.dot.li`.
+
+Notes:
+- `bulletin-deploy` uses `MNEMONIC` for the DotNS owner mnemonic.
+- On Paseo testnet, names like `my-app00.dot` do not require Proof of Personhood.
+- To use a different Bulletin RPC, set `BULLETIN_RPC`.
+
+Example:
+
+```bash
+export MNEMONIC="your twelve word mnemonic phrase goes here ..."
+bulletin-deploy ./dist my-app00.dot
+```

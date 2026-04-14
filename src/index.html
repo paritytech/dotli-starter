@@ -3,242 +3,446 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Starter Kit</title>
-        <meta name="theme-color" content="#F4E6D8" media="(prefers-color-scheme: light)" />
-        <meta name="theme-color" content="#5D4037" media="(prefers-color-scheme: dark)" />
+        <title>dotli Starter</title>
+        <meta name="theme-color" content="#f4f1ea" />
         <style>
+            :root {
+                --bg: #f4f1ea;
+                --panel: rgba(255, 255, 255, 0.72);
+                --panel-border: rgba(26, 38, 51, 0.12);
+                --text: #14202b;
+                --muted: #5d6976;
+                --accent: #0f766e;
+                --accent-soft: #d9f3ef;
+                --danger: #b42318;
+                --danger-soft: #fde7e4;
+                --shadow: 0 18px 48px rgba(20, 32, 43, 0.08);
+            }
+
             * {
                 box-sizing: border-box;
-                margin: 0;
-                padding: 0;
             }
+
+            html,
             body {
-                font-family: system-ui, sans-serif;
-                max-width: 520px;
+                margin: 0;
+                min-height: 100%;
+            }
+
+            body {
+                font-family: "Instrument Sans", "Avenir Next", Avenir, sans-serif;
+                color: var(--text);
+                background:
+                    radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 32%),
+                    radial-gradient(circle at top right, rgba(20, 32, 43, 0.08), transparent 28%),
+                    linear-gradient(180deg, #f7f4ee 0%, var(--bg) 100%);
+            }
+
+            .shell {
+                width: min(920px, calc(100vw - 32px));
                 margin: 0 auto;
-                padding: 2rem 1rem;
-                background: #000;
-                color: #e4e4e4;
+                padding: 48px 0 72px;
             }
-            h1 {
-                font-size: 1.3rem;
-                margin-bottom: 1.5rem;
+
+            .hero {
+                margin-bottom: 24px;
             }
-            section {
-                margin-bottom: 1.5rem;
-            }
-            section h2 {
-                font-size: 0.85rem;
+
+            .eyebrow {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 6px 10px;
+                border-radius: 999px;
+                background: rgba(255, 255, 255, 0.72);
+                border: 1px solid var(--panel-border);
+                color: var(--muted);
+                font-size: 12px;
+                letter-spacing: 0.08em;
                 text-transform: uppercase;
-                letter-spacing: 0.05em;
-                color: #888;
-                margin-bottom: 0.5rem;
             }
-            .iframe-row {
-                display: flex;
-                gap: 0.5rem;
+
+            h1 {
+                margin: 16px 0 10px;
+                font-size: clamp(2.2rem, 5vw, 4rem);
+                line-height: 0.95;
+                letter-spacing: -0.04em;
             }
-            .iframe-row iframe {
-                flex: 1;
-                height: 400px;
-                border: 1px solid #333;
-                border-radius: 4px;
-                background: #111;
-            }
-            #greeting {
-                font-size: 1.1rem;
-                min-height: 2.5rem;
-            }
-            #greeting .name {
-                font-weight: 700;
-            }
-            #greeting .addr {
-                display: block;
-                font-size: 0.75rem;
-                color: #888;
-                font-family: monospace;
-                margin-top: 2px;
-            }
-            .status {
-                font-size: 0.8rem;
-                color: #888;
-                margin-bottom: 0.5rem;
-            }
-            input {
-                width: 100%;
-                padding: 0.4rem 0.5rem;
-                border: 1px solid #333;
-                border-radius: 4px;
-                font-size: 0.85rem;
-                margin-bottom: 0.5rem;
-                background: #111;
-                color: #e4e4e4;
-            }
-            button {
-                padding: 0.5rem 1rem;
-                border: 1px solid #333;
-                border-radius: 4px;
-                background: #fff;
-                color: #000;
-                font-size: 0.85rem;
-                cursor: pointer;
-                width: 100%;
-                margin-bottom: 0.35rem;
-            }
-            button:hover:not(:disabled) {
-                background: #ccc;
-            }
-            button:disabled {
-                opacity: 0.3;
-                cursor: not-allowed;
-            }
-            button.secondary {
-                background: #111;
-                color: #e4e4e4;
-            }
-            button.secondary:hover:not(:disabled) {
-                background: #222;
-            }
-            .row {
-                display: flex;
-                gap: 0.35rem;
-            }
-            .row button {
-                flex: 1;
-            }
-            #log {
-                background: #111;
-                border: 1px solid #333;
-                border-radius: 4px;
-                padding: 0.5rem;
-                min-height: 60px;
-                max-height: 200px;
-                overflow-y: auto;
-                font-family: monospace;
-                font-size: 0.7rem;
+
+            .lede {
+                max-width: 640px;
+                margin: 0;
+                color: var(--muted);
+                font-size: 1rem;
                 line-height: 1.6;
-                white-space: pre-wrap;
+            }
+
+            .grid {
+                display: grid;
+                gap: 16px;
+                grid-template-columns: repeat(12, 1fr);
+            }
+
+            .card {
+                grid-column: span 12;
+                padding: 20px;
+                border-radius: 22px;
+                border: 1px solid var(--panel-border);
+                background: var(--panel);
+                box-shadow: var(--shadow);
+                backdrop-filter: blur(18px);
+            }
+
+            .card h2 {
+                margin: 0 0 6px;
+                font-size: 0.82rem;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: var(--muted);
+            }
+
+            .card p {
+                margin: 0;
+            }
+
+            .environment {
+                display: grid;
+                gap: 16px;
+            }
+
+            .identity {
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between;
+                gap: 16px;
+                align-items: flex-start;
+            }
+
+            .identity-main {
+                min-width: 0;
+            }
+
+            .identity-name {
+                font-size: 1.4rem;
+                font-weight: 700;
+                letter-spacing: -0.03em;
+            }
+
+            .identity-address {
+                margin-top: 6px;
+                color: var(--muted);
+                font-size: 0.82rem;
+                font-family: "SFMono-Regular", "Menlo", monospace;
                 word-break: break-all;
             }
+
+            .badges {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                border-radius: 999px;
+                font-size: 0.78rem;
+                font-weight: 600;
+                border: 1px solid transparent;
+            }
+
+            .badge.ok {
+                background: var(--accent-soft);
+                color: #0d5c56;
+            }
+
+            .badge.warn {
+                background: rgba(20, 32, 43, 0.06);
+                color: var(--muted);
+                border-color: rgba(20, 32, 43, 0.08);
+            }
+
+            .badge.err {
+                background: var(--danger-soft);
+                color: var(--danger);
+            }
+
+            .meta {
+                display: grid;
+                gap: 12px;
+                grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            }
+
+            .meta-block {
+                padding-top: 14px;
+                border-top: 1px solid rgba(20, 32, 43, 0.08);
+            }
+
+            .meta-label {
+                color: var(--muted);
+                font-size: 0.72rem;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+            }
+
+            .meta-value {
+                margin-top: 6px;
+                font-size: 0.95rem;
+                font-weight: 600;
+            }
+
+            .actions {
+                display: grid;
+                gap: 16px;
+            }
+
+            .field {
+                display: grid;
+                gap: 8px;
+            }
+
+            label {
+                color: var(--muted);
+                font-size: 0.82rem;
+                font-weight: 600;
+            }
+
+            input {
+                width: 100%;
+                padding: 14px 16px;
+                border-radius: 14px;
+                border: 1px solid rgba(20, 32, 43, 0.1);
+                background: rgba(255, 255, 255, 0.82);
+                color: var(--text);
+                font: inherit;
+            }
+
+            input:focus {
+                outline: 2px solid rgba(15, 118, 110, 0.18);
+                border-color: rgba(15, 118, 110, 0.32);
+            }
+
+            .button-row {
+                display: grid;
+                gap: 10px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            button {
+                padding: 13px 16px;
+                border: 0;
+                border-radius: 14px;
+                background: var(--text);
+                color: white;
+                font: inherit;
+                font-weight: 700;
+                cursor: pointer;
+                transition:
+                    transform 120ms ease,
+                    opacity 120ms ease,
+                    background 120ms ease;
+            }
+
+            button:hover:not(:disabled) {
+                transform: translateY(-1px);
+            }
+
+            button:disabled {
+                cursor: not-allowed;
+                opacity: 0.45;
+            }
+
+            button.secondary {
+                background: rgba(20, 32, 43, 0.08);
+                color: var(--text);
+            }
+
+            .subtle {
+                color: var(--muted);
+                font-size: 0.85rem;
+                line-height: 1.5;
+            }
+
+            .log-card {
+                display: grid;
+                gap: 12px;
+            }
+
+            .log-head {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+            }
+
+            #log {
+                min-height: 220px;
+                max-height: 360px;
+                overflow: auto;
+                border-radius: 16px;
+                background: #15212d;
+                color: #dce6f0;
+                padding: 16px;
+                font-family: "SFMono-Regular", "Menlo", monospace;
+                font-size: 12px;
+                line-height: 1.65;
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+
             #log .ts {
-                color: #999;
+                color: #7f96ab;
             }
+
             #log .ok {
-                color: #16a34a;
+                color: #7ef1bb;
             }
+
             #log .err {
-                color: #dc2626;
+                color: #ff918a;
             }
+
             #log .info {
-                color: #e4e4e4;
+                color: #dce6f0;
             }
+
             #btn-clear {
                 width: auto;
-                background: #111;
-                color: #e4e4e4;
-                font-size: 0.7rem;
-                padding: 0.25rem 0.75rem;
-                margin-top: 0.35rem;
+                padding-inline: 14px;
+            }
+
+            @media (min-width: 760px) {
+                .environment-card {
+                    grid-column: span 5;
+                }
+
+                .actions-card {
+                    grid-column: span 7;
+                }
+            }
+
+            @media (max-width: 640px) {
+                .shell {
+                    padding-top: 32px;
+                }
+
+                .button-row {
+                    grid-template-columns: 1fr;
+                }
             }
         </style>
     </head>
     <body>
-        <h1>Starter Kit</h1>
+        <main class="shell">
+            <header class="hero">
+                <div class="eyebrow">dotli starter</div>
+                <h1>Small host app, not a kitchen sink.</h1>
+                <p class="lede">
+                    A minimal starter for dotli that shows host detection,
+                    account access, one signed transaction, one raw signature,
+                    simple app-scoped storage, and a managed chain read.
+                </p>
+            </header>
 
-        <!-- Iframes: two dot.li apps side by side -->
-        <section>
-            <h2>Iframes</h2>
-            <div class="iframe-row">
-                <iframe src="http://bafybeib7mqbxwuedjliqp5qko6qjiqzu7lubicnjofzy4sgmvlxfy6m4ni.app.dot.li" sandbox="allow-scripts allow-same-origin" allow="clipboard-read; clipboard-write"></iframe>
-            </div>
-        </section>
+            <section class="grid">
+                <article class="card environment-card">
+                    <h2>Environment</h2>
+                    <div class="environment">
+                        <div class="identity">
+                            <div class="identity-main">
+                                <div id="identity-name" class="identity-name">
+                                    Loading...
+                                </div>
+                                <div id="identity-address" class="identity-address">
+                                    Waiting for host
+                                </div>
+                            </div>
+                            <div class="badges">
+                                <div id="transport-badge" class="badge warn">
+                                    Initializing
+                                </div>
+                                <div class="badge warn">Paseo Asset Hub</div>
+                            </div>
+                        </div>
 
-        <!-- Account: shows greeting once logged in, or a prompt to log in -->
-        <section>
-            <h2>Account</h2>
-            <div id="greeting">Loading...</div>
-        </section>
+                        <div class="meta">
+                            <div class="meta-block">
+                                <div class="meta-label">Connection</div>
+                                <div id="status-text" class="meta-value">
+                                    Checking host bridge...
+                                </div>
+                            </div>
+                            <div class="meta-block">
+                                <div class="meta-label">Account</div>
+                                <div id="account-count" class="meta-value">
+                                    0 accounts
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </article>
 
-        <!-- Connection: shows SDK status and chain info -->
-        <section>
-            <h2>Connection</h2>
-            <p class="status"><span id="status-text">Connecting...</span></p>
-            <p style="font-size: 0.85rem">Paseo Asset Hub (Testnet)</p>
-        </section>
+                <article class="card actions-card">
+                    <h2>Actions</h2>
+                    <div class="actions">
+                        <div class="field">
+                            <label for="message-input">Message</label>
+                            <input
+                                id="message-input"
+                                type="text"
+                                value="Hello from dotli starter"
+                            />
+                        </div>
 
-        <!-- System.remark: sign and submit an on-chain remark (waits for finalization) -->
-        <section>
-            <h2>System.remark</h2>
-            <input
-                id="remark-input"
-                type="text"
-                value="Hello from starter kit!"
-            />
-            <button id="btn-remark" disabled>Sign & Submit</button>
-        </section>
+                        <div class="button-row">
+                            <button id="btn-remark" disabled>Submit Remark</button>
+                            <button id="btn-sign-raw" class="secondary" disabled>
+                                Sign Message
+                            </button>
+                        </div>
 
-        <!-- Sign raw: sign an arbitrary message without submitting on-chain -->
-        <section>
-            <h2>Sign Raw Message</h2>
-            <input id="raw-input" type="text" value="Hello from starter kit!" />
-            <button id="btn-sign-raw" class="secondary" disabled>
-                Sign Raw
-            </button>
-        </section>
+                        <div class="button-row">
+                            <button id="btn-storage-save" class="secondary" disabled>
+                                Save Draft
+                            </button>
+                            <button id="btn-storage-load" class="secondary" disabled>
+                                Load Draft
+                            </button>
+                        </div>
 
-        <!-- Host storage: persist JSON data scoped to this app -->
-        <section>
-            <h2>Host Storage</h2>
-            <input
-                id="storage-key"
-                type="text"
-                value="demo_key"
-                placeholder="key"
-            />
-            <input
-                id="storage-value"
-                type="text"
-                value='{"hello":"world"}'
-                placeholder="JSON value"
-            />
-            <div class="row">
-                <button id="btn-stor-write" class="secondary" disabled>
-                    Write
-                </button>
-                <button id="btn-stor-read" class="secondary" disabled>
-                    Read
-                </button>
-                <button id="btn-stor-clear" class="secondary" disabled>
-                    Clear
-                </button>
-            </div>
-        </section>
+                        <div class="button-row">
+                            <button id="btn-storage-clear" class="secondary" disabled>
+                                Clear Draft
+                            </button>
+                            <button id="btn-chain-read" class="secondary" disabled>
+                                Read Chain
+                            </button>
+                        </div>
 
-        <!-- Chain read: query on-chain state through the Host's managed connection -->
-        <section>
-            <h2>Chain Read</h2>
-            <button id="btn-chain-read" class="secondary" disabled>
-                Read Finalized Block
-            </button>
-        </section>
+                        <p class="subtle">
+                            Storage uses a single app-scoped key:
+                            <code>starter_message</code>
+                        </p>
+                    </div>
+                </article>
 
-        <!-- Log: timestamped output for all SDK operations -->
-        <section>
-            <h2>Log</h2>
-            <div id="log"></div>
-            <button id="btn-clear">Clear</button>
-        </section>
+                <article class="card log-card">
+                    <div class="log-head">
+                        <div>
+                            <h2>Activity</h2>
+                            <p class="subtle">
+                                All host operations log here with timestamps.
+                            </p>
+                        </div>
+                        <button id="btn-clear" class="secondary">Clear</button>
+                    </div>
+                    <div id="log"></div>
+                </article>
+            </section>
+        </main>
 
-        <script type="importmap">
-            {
-                "imports": {
-                    "@novasamatech/product-sdk": "https://esm.sh/@novasamatech/product-sdk@0.6.1",
-                    "polkadot-api": "https://esm.sh/polkadot-api@1.23.1",
-                    "polkadot-api/utils": "https://esm.sh/polkadot-api@1.23.1/utils",
-                    "polkadot-api/ws-provider": "https://esm.sh/polkadot-api@1.23.1/ws-provider"
-                }
-            }
-        </script>
-        <script type="module" src="main.js"></script>
+        <script type="module" src="./main.js"></script>
     </body>
 </html>
